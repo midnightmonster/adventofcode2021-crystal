@@ -14,7 +14,7 @@ OptionParser.parse do |parser|
   end
   parser.on "-2 FILENAME", "--part2=FILENAME", "Count sliding window of 3 readings deeper than previous window" do |filename|
     deeper, _ = File.open(filename) do |file|
-      file.each_line.reduce({0,Array(Int32).new(4)}) do |(deeper,window),line|
+      file.each_line.reduce({0,Deque(Int32).new(4)}) do |(deeper,window),line|
         prev = window.sum
         window.push(line.to_i)
         if window.size > 3
