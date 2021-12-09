@@ -22,12 +22,11 @@ class BinTree
     @count = 0
   end
 
-  def build(chars : (Array(UInt8) | String))
-    chars = case chars
-    when Array(UInt8) then chars
-    when String then chars.bytes
-    else raise "wtf?"
-    end
+  def build(chars : String)
+    build(chars.bytes)
+  end
+
+  def build(chars : Array(UInt8))
     @count += 1
     if chars.size > 0
       byte = chars.shift
