@@ -25,20 +25,25 @@ def part1(filename)
   puts "Dangerous grid spaces: #{danger}"
 end
 
-# I forgot that ranges can't go from larger to smaller, so I did a whole second
-# implementation with an array of arrays, thinking I had gone wrong there somehow.
-#
-# def part1(filename)
-#   grid = Array(Array(Int16)).new(1000) { Array(Int16).new(1000,0) }
-#   coordinate_pairs(filename) do |(x1,y1),(x2,y2)|
-#     case
-#     when x1==x2 then (y1..y2).each {|y| grid[x1][y] += 1 }
-#     when y1==y2 then (x1..x2).each {|x| grid[x][y1] += 1 }
-#     end
-#   end
-#   danger = grid.sum {|col| col.reduce(0) {|memo,v| v > 0 ? memo + 1 : memo } }
-#   puts "Dangerous grid spaces: #{danger}"
-# end
+def iterate_line(x1,y1,x2,y2)
+  dx = x2 <=> x1
+  dy = y2 <=> y1
+  loop do
+    yield({x1,y1})
+    break if x1==x2 && y1==y2
+    x1 += dx
+    y1 += dy
+  end
+end
+
+def part2(filename)
+  grid = Hash(Tuple(Int16, Int16),Int16).new(0)
+  coordinate_pairs(filename) do |(x1,y1),(x2,y2)|
+    iterate_line(x1,y1,x2,y2) {|coords| grid[coords] += 1 }
+  end
+  danger = grid.each_value.reduce(0) {|memo,v| v > 1 ? memo + 1 : memo }
+  puts "Dangerous grid spaces: #{danger}"
+end
 
 OptionParser.parse do |parser|
   parser.banner = "Advent of Code 2021 - Day 5, Parts 1 & 2"
@@ -46,10 +51,10 @@ OptionParser.parse do |parser|
     part1(filename)
     exit
   end
-  # parser.on "-2 FILENAME", "--part2=FILENAME", "Slowest winning bingo board score" do |filename|
-  #   part2(filename)
-  #   exit
-  # end
+  parser.on "-2 FILENAME", "--part2=FILENAME", "Count dangerous thermal vent overlaps, including diagonals" do |filename|
+    part2(filename)
+    exit
+  end
   parser.on "-h", "--help", "Show help" do
     puts parser
     exit
