@@ -47,46 +47,65 @@ class BingoBoard
   end
 end
 
-def part1(filename)
+def iterate_boards(filename)
   calls = nil
-  fastest = Int32::MAX
-  score = 0
   board = BingoBoard.new
   File.each_line(filename) do |line|
-    if calls.nil?
-      calls = line.split(',').map(&.to_i)
-      fastest = calls.size
-      next
-    end
+    next calls = line.split(',').map(&.to_i) if calls.nil?
     case line
     when ""
-      if board.ready?
-        (0..fastest-1).each_with_index do |call_index,index|
-          if win = board.call(calls[call_index])
-            fastest = index
-            score = win
-            break
-          end
-        end
-      end
+      yield board, calls if board.ready?
       board.reset!
     else
       board.add_row(line)
     end
   end
-  puts "Winning score is #{score} after #{fastest} calls"
+  nil
+end
+
+def part1(filename)
+  fastest = Int32::MAX
+  score = 0
+  iterate_boards(filename) do |board,calls|
+    fastest = calls.size if fastest > calls.size
+    (0..fastest-1).each_with_index do |call_index,index|
+      if win = board.call(calls[call_index])
+        fastest = index
+        score = win
+        break
+      end
+    end
+  end
+  puts "Fastest winning score is #{score} after #{fastest} calls"
+end
+
+def part2(filename)
+  slowest = 0
+  score = 0
+  iterate_boards(filename) do |board,calls|
+    calls.each_with_index do |call,index|
+      if win = board.call(call)
+        if index > slowest
+          slowest = index
+          score = win
+        end
+        break
+      end
+    end
+  end
+  puts "Slowest winning score is #{score} after #{slowest} calls"
 end
 
 OptionParser.parse do |parser|
   parser.banner = "Advent of Code 2021 - Day 4, Parts 1 & 2"
-  parser.on "-1 FILENAME", "--part1=FILENAME", "Winning bingo board score" do |filename|
+  parser.on "-1 FILENAME", "--part1=FILENAME", "Fastest winning bingo board score" do |filename|
     part1(filename)
     exit
   end
-  # parser.on "-2 FILENAME", "--part2=FILENAME", "Life support rating from diagnostic report" do |filename|
-  #   part2(filename)
-  #   exit
-  # end
+  parser.on "-2 FILENAME", "--part2=FILENAME", "Slowest winning bingo board score" do |filename|
+    part2(filename)
+    exit
+  end
   parser.on "-h", "--help", "Show help" do
     puts parser
     exit
