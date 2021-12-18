@@ -64,7 +64,7 @@ OptionParser.parse do |parser|
     part1(filename)
     exit
   end
-  parser.on "-2 FILENAME", "--part2=FILENAME", "Count dangerous thermal vent overlaps, including diagonals" do |filename|
+  parser.on "-2 FILENAME", "--part2=FILENAME", "Sum of all mixed-up readouts" do |filename|
     part2(filename)
     exit
   end
