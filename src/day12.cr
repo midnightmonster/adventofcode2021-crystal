@@ -25,8 +25,9 @@ wn-DG"
 cons = INPUT.split(/\n|-/).in_groups_of(2,"").reduce(
   Hash(String,Set(String)).new {|h,k| h[k] = Set(String).new }
 ) do |h,(a,b)|
-  h[a] << b
-  h[b] << a
+  # two-way connections except never link back to start
+  h[a] << b unless "start" == b
+  h[b] << a unless "start" == a
   h
 end
 
@@ -39,6 +40,16 @@ def traverse(cons,node,visited = Set(String).new)
   return available.sum {|n| traverse(cons,n,visited.dup) }
 end
 
-paths = traverse(cons,"start")
+puts "#{traverse(cons,"start")} possible paths"
 
-puts "#{paths} possible paths"
+def traverse2(cons,node,visited = Set(String).new)
+  return 1 if node == "end"
+  possible = cons[node]
+  visited << node unless /^[A-Z]+$/.match(node)
+  return possible.sum do |n|
+    next traverse2(cons,n,visited.dup) unless visited.includes?(n)
+    traverse(cons,n,visited.dup)
+  end
+end
+
+puts "#{traverse2(cons,"start")} possible paths when revisiting one small cave"
