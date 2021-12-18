@@ -1,33 +1,70 @@
 require "option_parser"
-require "colorize"
+
+class Grid
+  @grid : Array(Array(Char))
+
+  def initialize(filename)
+    @grid = File.read_lines(filename).map &.chars
+  end
+
+  def width
+    @grid[0].size
+  end
+
+  def height
+    @grid.size
+  end
+
+  def [](x : Int32, y : Int32) : Char
+    return '9' if x < 0 || y < 0
+    @grid[y]?.try {|row| row[x]? } || '9'
+  end
+
+  def points
+    xmax = width - 1
+    ymax = height - 1
+    x = -1
+    y = 0
+    Iterator.of do
+      x += 1
+      if x > xmax
+        x = 0
+        y += 1
+      end
+      next Iterator.stop if y > ymax
+      {self[x,y], x, y}
+    end
+  end
+
+  def low_points
+    points.select do |char,x,y|
+      char < {self[x,y-1],self[x+1,y],self[x,y+1],self[x-1,y]}.min
+    end
+  end
+
+end
 
 def part1(filename)
-  grid = File.read_lines(filename).map &.chars
-  sum = grid.each_with_index.reduce(0) do |memo,(row,y)|
-    result = 0
-    puts(String.build(1200) do |str|
-      result = memo + row.each_with_index.reduce(0) do |memo,(char,x)|
-        if char < {
-          y > 0 ? grid[y-1][x] : 'a',
-          x+1 < row.size ? row[x+1] : 'a',
-          y+1 < grid.size ? grid[y+1][x] : 'a',
-          x > 0 ? row[x-1] : 'a'
-        }.min
-          str << char.colorize.red.bold
-          memo + char.to_i + 1
-        else
-          str << char.colorize.dark_gray
-          memo
-        end
-      end
-    end)
-    result
-  end
+  grid = Grid.new(filename)
+  sum = grid.low_points.reduce(0){|memo,(char,_,_)| memo + char.to_i + 1 }
   puts "The sum of all low-point risk levels is #{sum}"
 end
 
+def fill_grid_area(grid : Grid, x : Int32, y : Int32, points : Set({Int32,Int32}) = Set({Int32,Int32}).new)
+  return points if points.includes?({x,y})
+  return points if grid[x,y] == '9'
+  points << {x,y}
+  fill_grid_area(grid,x,y-1,points)
+  fill_grid_area(grid,x+1,y,points)
+  fill_grid_area(grid,x,y+1,points)
+  fill_grid_area(grid,x-1,y,points)
+end
+
 def part2(filename)
-  
+  grid = Grid.new(filename)
+  basins = grid.low_points.map {|(_,x,y)| fill_grid_area(grid,x,y).size }.to_a
+  largest = basins.sort[-3,3]
+  puts "The largest basins sizes are #{largest.join(", ")} with a product of #{largest.product}"
 end
 
 OptionParser.parse do |parser|
@@ -36,7 +73,7 @@ OptionParser.parse do |parser|
     part1(filename)
     exit
   end
-  parser.on "-2 FILENAME", "--part2=FILENAME", "" do |filename|
+  parser.on "-2 FILENAME", "--part2=FILENAME", "Product of three largest basins' size" do |filename|
     part2(filename)
     exit
   end
