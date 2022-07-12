@@ -1,6 +1,6 @@
 # Part 2 only; ~20 min
 days = 256 # change to 80 for Part 1
-File.read!("input/day6") |> String.trim |> String.split(",") |> Enum.map(&String.to_integer/1)
+File.read!("input/day6") |> String.split(",") |> Enum.map(fn s -> Integer.parse(s) |> elem(0) end)
 |> Enum.reduce(%{}, fn age, pop -> Map.update(pop, age, 1, fn v -> v + 1 end) end)
 |> then(fn pop ->
   Enum.reduce(1..days, pop, fn _, pop ->
