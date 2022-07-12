@@ -44,18 +44,13 @@ calls = calls |> String.split(",") |> Enum.map(&String.to_integer/1)
 boards = boards |> Enum.map(&BingoBoard.parse/1)
 
 calls |> Enum.reduce_while(boards, fn number, boards ->
-  {marked_boards, score} = Enum.map_reduce(boards, nil, fn (board, score) ->
-    if is_number(score) do
-      {board,score}
-    else
-      marked = BingoBoard.mark(board, number)
-      case BingoBoard.bingo?(marked) do
-        true -> {marked,BingoBoard.score(marked, number)}
-        _ -> {marked,nil}
-      end
-    end
-  end)
-  if is_number(score), do: {:halt, score}, else: {:cont, marked_boards}
+  case Enum.flat_map_reduce(boards, nil, fn (board, _) ->
+    marked = BingoBoard.mark(board, number)
+    if BingoBoard.bingo?(marked), do: {:halt, BingoBoard.score(marked, number)}, else: {[marked], nil}
+  end) do
+    {list,nil} -> {:cont, list}
+    {_,score} -> {:halt, score}
+  end
 end) |> then(fn score -> IO.puts "#{score} is the score of the first winning board" end)
 
 calls |> Enum.reduce_while({boards, 0}, fn
