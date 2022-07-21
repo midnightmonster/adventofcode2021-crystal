@@ -19,28 +19,52 @@ defmodule Navigate do
     end) |> elem(1)
   end
 
-  def risk_at(nav, {x,y}) do
+  defp risk_at(nav, {x,y}) do
     index = y * nav.width + x
-    if index in 0..(byte_size(nav.grid)-1), do: :binary.at(nav.grid, index), else: 999
+    :binary.at(nav.grid, index)
   end
 
-  def path(nav, coords \\ {0,0}, visited \\ MapSet.new([{0,0}]), risk \\ 0, best \\ nil)
-  def path(_, _, _, risk, best) when risk >= best, do: nil
-  def path(nav, {x,y}, _, _, _) when x in [-1,nav.width] or y in [-1,nav.height], do: nil
-  def path(nav, {x,y}, _, risk, _) when (nav.width - 1) == x and (nav.height - 1) == y, do: risk
-  def path(nav, {x,y}, visited, risk, best) do
-    @moves |> reduce(best, fn {dx, dy}, best ->
-      coords = {x + dx, y + dy}
-      if MapSet.member?(visited, coords) do
-        best
+  def valid_move(nav, {x,y}, {dx,dy}) do
+    x = x + dx
+    y = y + dy
+    if x in 0..(nav.width-1) and y in 0..(nav.height-1) do
+      {:ok, {x,y}}
+    else
+      {:err, :out_of_bounds}
+    end
+  end
+
+  def new_best(bests, coords, risk) do
+    case Map.get_and_update(bests, coords, fn v -> {v, min([risk, v])} end) do
+      {prev, bests} when risk < prev -> {:ok, bests}
+      _ -> {:err, :worse}
+    end
+  end
+
+  def goal(nav) do
+    {nav.width - 1, nav.height - 1}
+  end
+
+  defp path(nav, coords \\ {0,0}, risk \\ 0, bests \\ %{}) do
+    the_end = goal(nav)
+    @moves |> reduce(bests, fn move, bests ->
+      with {:ok, coords} <- valid_move(nav, coords, move),
+           risk <- (risk_at(nav, coords) + risk),
+           {:ok, bests} <- new_best(bests, coords, risk) do
+        case coords == the_end do
+          true -> bests
+          false -> path(nav, coords, risk, bests)
+        end
       else
-        min([best, path(nav, coords, MapSet.put(visited, coords), risk + risk_at(nav, coords), best)])
+        _ -> bests
       end
     end)
   end
+
+  def min_risk(nav), do: path(nav) |> Map.get(goal(nav))
 end
 
 Navigate.load_file("input/day15")
 |> IO.inspect
-|> Navigate.path
+|> Navigate.min_risk
 |> IO.inspect
