@@ -1,9 +1,9 @@
 import Enum
 defmodule Navigate do
-  defstruct grid: "", width: 0, height: 0
+  defstruct grid: "", width: 0, height: 0, goal: {0,0}
   @moves [{1,0},{0,1},{-1,0},{0,-1}]
   def load_file(path) do
-    StringIO.open("", fn pid ->
+    nav = StringIO.open("", fn pid ->
       {width,height} = File.stream!(path)
       |> reduce({0,0}, fn line, {w,h} ->
         line = String.trim(line)
@@ -17,6 +17,7 @@ defmodule Navigate do
       {_, grid} = StringIO.contents pid
       %Navigate{ grid: grid, width: width, height: height }
     end) |> elem(1)
+    %{nav | goal: {nav.width-1, nav.height-1}}
   end
 
   defp risk_at(nav, {x,y}) do
@@ -41,17 +42,22 @@ defmodule Navigate do
     end
   end
 
-  def goal(nav) do
-    {nav.width - 1, nav.height - 1}
+  def plausible_path(nav, bests, {x,y}, risk) do
+    case Map.get(bests, nav.goal) do
+      nil -> :ok
+      best -> with {gx,gy} <- nav.goal do
+        if((risk + gx - x + gy - y) < best, do: :ok, else: :err)
+      end
+    end
   end
 
   defp path(nav, coords \\ {0,0}, risk \\ 0, bests \\ %{}) do
-    the_end = goal(nav)
     @moves |> reduce(bests, fn move, bests ->
       with {:ok, coords} <- valid_move(nav, coords, move),
            risk <- (risk_at(nav, coords) + risk),
+           :ok <- plausible_path(nav, bests, coords, risk),
            {:ok, bests} <- new_best(bests, coords, risk) do
-        case coords == the_end do
+        case coords == nav.goal do
           true -> bests
           false -> path(nav, coords, risk, bests)
         end
@@ -61,7 +67,11 @@ defmodule Navigate do
     end)
   end
 
-  def min_risk(nav), do: path(nav) |> Map.get(goal(nav))
+  def min_risk(nav) do
+    start = Time.utc_now
+    risk = path(nav) |> Map.get(nav.goal)
+    {risk, Time.diff(Time.utc_now, start, :millisecond)}
+  end
 end
 
 Navigate.load_file("input/day15")
