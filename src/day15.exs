@@ -58,33 +58,37 @@ defmodule Navigate do
     end
   end
 
-  def plausible_path(nav, bests, {x,y}, risk) do
-    case Map.get(bests, nav.goal) do
-      nil -> :ok
-      best -> with {gx,gy} <- nav.goal do
-        if((risk + gx - x + gy - y) < best, do: :ok, else: :err)
-      end
-    end
-  end
-
   defp path(nav, bests \\ %{{0,0}=>0}, to_visit \\ [{0,0}], to_visit_set \\ MapSet.new)
   defp path(nav, bests, [], _), do: Map.get(bests, nav.goal)
+  defp path(nav, bests, [coords|_to_visit], _) when coords == nav.goal, do: Map.get(bests, coords)
   defp path(nav, bests, [coords|to_visit], to_visit_set) do
     to_visit_set = MapSet.delete(to_visit_set, coords)
     {more_steps, {bests, to_visit_set}} = @moves |> flat_map_reduce({bests, to_visit_set}, fn move, {bests, to_visit_set} ->
       with {:ok, ncoords} <- valid_move(nav, coords, move),
            risk <- (Map.get(nav.grid, ncoords) + Map.get(bests, coords)),
-           :ok <- plausible_path(nav, bests, ncoords, risk), # This saves maybe 1.5s out of ~45s
            {:ok, bests} <- new_best(bests, ncoords, risk) do
-        {
-          if(ncoords == nav.goal, do: [], else: [ncoords]),
-          {bests, MapSet.put(to_visit_set, ncoords)}
-        }
+        if MapSet.member?(to_visit_set, ncoords) do
+          {[],{bests,to_visit_set}}
+        else
+          {[ncoords],{bests, MapSet.put(to_visit_set, ncoords)}}
+        end
       else
         _ -> {[],{bests,to_visit_set}}
       end
     end)
-    path(nav, bests, to_visit ++ more_steps, to_visit_set)
+    to_visit = more_steps |> reduce(to_visit, &(insert_step(nav,bests,&1,&2)))
+    path(nav, bests, to_visit, to_visit_set)
+  end
+
+  def insert_step(nav, risks, step, to_visit) do
+    step_risk = hrisk(nav, risks, step)
+    {head, tail} = split_while(to_visit, fn c -> hrisk(nav, risks, c) < step_risk end)
+    head ++ [step | tail]
+  end
+
+  def hrisk(nav, risks, {x,y}) do
+    {gx,gy} = nav.goal
+    Map.get(risks, {x,y}) + (gx + gy - x - y)
   end
 
   def min_risk(nav) do
