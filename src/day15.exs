@@ -1,41 +1,33 @@
 import Enum
 defmodule Navigate do
   defstruct grid: "", width: 0, height: 0
+  
   @moves [{1,0},{0,1},{-1,0},{0,-1}]
-  def load_file(path) do
-    {grid,{width,height}} = File.stream!(path)
-    |> reduce({%{},{0,0}}, fn line, {grid,{w,h}} ->
-      line = String.trim(line)
-      grid = line
-      |> :binary.bin_to_list
-      |> map(&(&1 - 48))
-      |> with_index
-      |> reduce(grid, fn {v, x}, grid ->
-        Map.put(grid,{x,h},v)
-      end)
-      {grid,{max([w,byte_size(line)]), h + 1}}
-    end)
-    %Navigate{ grid: grid, width: width, height: height }
-  end
 
-  def expand(nav, ex, ey) do
-    grid = 0..ex
-    |> flat_map(fn sx -> 0..ey |> map(&({sx, &1})) end)
-    |> map(fn {sx,sy} ->
-      Map.new(nav.grid, fn {{x,y}, v} ->
-        v = case rem(v + sx + sy, 9) do
-          0 -> 9
-          v -> v
-        end
-        {{x + nav.width * sx, y + nav.height * sy}, v}
+  def load_file(path, ex \\ 0, ey \\ 0) do
+    StringIO.open("", fn pid ->
+      {width, height} = 0..ey |> reduce({0,0}, fn sy, {_width, _height} ->
+        File.stream!(path) |> reduce({0,0}, fn line, {_w,h} ->
+          line = String.trim(line)
+          width = byte_size(line)
+          costs = line |> :binary.bin_to_list |> map(&(&1 - 48))
+          0..ex |> each(fn sx ->
+            bytes = costs |> map(fn cost ->
+              case rem(cost + sx + sy, 9) do
+                0 -> 9
+                c -> c
+              end
+            end) |> :binary.list_to_bin
+            IO.write pid, bytes
+          end)
+          {width, h + 1}
+        end)
       end)
-    end)
-    |> reduce(&Map.merge/2)
-    width = nav.width * (ex + 1)
-    height = nav.height * (ey + 1)
-    %Navigate{ grid: grid, width: width, height: height }
+      {_, grid} = StringIO.contents pid
+      %Navigate{ grid: grid, width: width * (ex + 1), height: height * (ey + 1) }
+    end) |> elem(1)
   end
-
+  
   def cost(nav, start, goal), do: costr({[{0, start}], %{start => 0}}, nav, goal)
   
   defp costr({[{final_cost, node} | _], _}, _nav, goal) when node == goal, do: final_cost
@@ -56,14 +48,10 @@ defmodule Navigate do
     left ++ [item | right]
   end
 
-  def node_cost(nav, node) do
-    Map.get(nav.grid, node)
+  def node_cost(nav, {x,y}) do
+    index = y * nav.width + x
+    :binary.at(nav.grid, index)
   end
-
-  # def node_cost(nav, {x,y}) do
-  #   index = y * nav.width + x
-  #   :binary.at(nav.grid, index)
-  # end
 
   def neighbors(nav, {x,y}) do
     @moves |> flat_map(fn {dx,dy} ->
@@ -85,9 +73,7 @@ defmodule Navigate do
   end
 end
 
-Navigate.load_file("input/day15")
-# |> IO.inspect
-|> Navigate.expand(4,4)
+Navigate.load_file("input/day15",4,4)
 # |> IO.inspect
 |> Navigate.cost({0,0},{499,499})
-|> IO.inspect
+|> IO.puts
