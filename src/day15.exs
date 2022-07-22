@@ -1,6 +1,6 @@
 import Enum
 defmodule Navigate do
-  defstruct grid: "", width: 0, height: 0, goal: {0,0}
+  defstruct grid: "", width: 0, height: 0
   @moves [{1,0},{0,1},{-1,0},{0,-1}]
   def load_file(path) do
     {grid,{width,height}} = File.stream!(path)
@@ -15,7 +15,7 @@ defmodule Navigate do
       end)
       {grid,{max([w,byte_size(line)]), h + 1}}
     end)
-    %Navigate{ grid: grid, width: width, height: height, goal: {width-1, height-1} }
+    %Navigate{ grid: grid, width: width, height: height }
   end
 
   def expand(nav, ex, ey) do
@@ -33,74 +33,61 @@ defmodule Navigate do
     |> reduce(&Map.merge/2)
     width = nav.width * (ex + 1)
     height = nav.height * (ey + 1)
-    %Navigate{ grid: grid, width: width, height: height, goal: {width-1, height-1} }
+    %Navigate{ grid: grid, width: width, height: height }
   end
 
-  defp risk_at(nav, {x,y}) do
-    index = y * nav.width + x
-    :binary.at(nav.grid, index)
-  end
+  def cost(nav, start, goal), do: costr({[{0, start}], %{start => 0}}, nav, goal)
+  
+  defp costr({[{final_cost, node} | _], _}, _nav, goal) when node == goal, do: final_cost
 
-  def valid_move(nav, {x,y}, {dx,dy}) do
-    x = x + dx
-    y = y + dy
-    if x in 0..(nav.width-1) and y in 0..(nav.height-1) do
-      {:ok, {x,y}}
-    else
-      {:err, :out_of_bounds}
-    end
-  end
-
-  def new_best(bests, coords, risk) do
-    case Map.get_and_update(bests, coords, fn v -> {v, min([risk, v])} end) do
-      {prev, bests} when risk < prev -> {:ok, bests}
-      _ -> {:err, :worse}
-    end
-  end
-
-  defp path(nav, bests \\ %{{0,0}=>0}, to_visit \\ [{0,0}], to_visit_set \\ MapSet.new)
-  defp path(nav, bests, [], _), do: Map.get(bests, nav.goal)
-  defp path(nav, bests, [coords|_to_visit], _) when coords == nav.goal, do: Map.get(bests, coords)
-  defp path(nav, bests, [coords|to_visit], to_visit_set) do
-    to_visit_set = MapSet.delete(to_visit_set, coords)
-    {more_steps, {bests, to_visit_set}} = @moves |> flat_map_reduce({bests, to_visit_set}, fn move, {bests, to_visit_set} ->
-      with {:ok, ncoords} <- valid_move(nav, coords, move),
-           risk <- (Map.get(nav.grid, ncoords) + Map.get(bests, coords)),
-           {:ok, bests} <- new_best(bests, ncoords, risk) do
-        if MapSet.member?(to_visit_set, ncoords) do
-          {[],{bests,to_visit_set}}
-        else
-          {[ncoords],{bests, MapSet.put(to_visit_set, ncoords)}}
-        end
+  defp costr({[{cost_so_far, node} | frontier], costs}, nav, goal) do
+    neighbors(nav, node) |> reduce({frontier, costs}, fn next, {frontier, costs} ->
+      with cost <- (node_cost(nav, next) + cost_so_far),
+           {:ok, costs} <- new_best(costs, next, cost) do
+        {enqueue(frontier,{cost,next}), costs}
       else
-        _ -> {[],{bests,to_visit_set}}
+        _ -> {frontier, costs}
+      end
+    end) |> costr(nav, goal)
+  end
+
+  defp enqueue(list, item) do
+    {left, right} = split_while(list, &(&1 < item))
+    left ++ [item | right]
+  end
+
+  def node_cost(nav, node) do
+    Map.get(nav.grid, node)
+  end
+
+  # def node_cost(nav, {x,y}) do
+  #   index = y * nav.width + x
+  #   :binary.at(nav.grid, index)
+  # end
+
+  def neighbors(nav, {x,y}) do
+    @moves |> flat_map(fn {dx,dy} ->
+      x = x + dx
+      y = y + dy
+      if x in 0..(nav.width-1) and y in 0..(nav.height-1) do
+        [{x,y}]
+      else
+        []
       end
     end)
-    to_visit = more_steps |> reduce(to_visit, &(insert_step(nav,bests,&1,&2)))
-    path(nav, bests, to_visit, to_visit_set)
   end
 
-  def insert_step(nav, risks, step, to_visit) do
-    step_risk = hrisk(nav, risks, step)
-    {head, tail} = split_while(to_visit, fn c -> hrisk(nav, risks, c) < step_risk end)
-    head ++ [step | tail]
-  end
-
-  def hrisk(nav, risks, {x,y}) do
-    {gx,gy} = nav.goal
-    Map.get(risks, {x,y}) + (gx + gy - x - y)
-  end
-
-  def min_risk(nav) do
-    start = Time.utc_now
-    risk = path(nav)
-    {risk, Time.diff(Time.utc_now, start, :millisecond)}
+  defp new_best(known_costs, node, cost) do
+    Map.get_and_update(known_costs, node, fn
+      v when cost < v -> {:ok, cost}
+      v -> {:err, v}
+    end)
   end
 end
 
 Navigate.load_file("input/day15")
-|> IO.inspect
+# |> IO.inspect
 |> Navigate.expand(4,4)
-|> IO.inspect
-|> Navigate.min_risk
+# |> IO.inspect
+|> Navigate.cost({0,0},{499,499})
 |> IO.inspect
