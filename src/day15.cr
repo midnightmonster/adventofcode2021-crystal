@@ -1,77 +1,87 @@
-INPUT = File.read("input/day15")
-# INPUT = "1163751742
-# 1381373672
-# 2136511328
-# 3694931569
-# 7463417111
-# 1319128137
-# 1359912421
-# 3125421639
-# 1293138521
-# 2311944581"
+class Nav
+  @grid : Array(Array(Int8))
+  @width : Int32
+  @height : Int32
 
-def print_grid(grid)
-  grid.each {|line| puts line.join(',') }
-end
-
-qgrid = INPUT.split("\n").map {|line| line.chars.map &.to_i8 }
-la = qgrid.size
-lb = qgrid.first.size
-grid = Array(Array(Int8)).new(la * 5) { Array(Int8).new(lb * 5,0) }
-max = {(grid.size - 1),(grid[0].size - 1)}
-start = {0,0}
-goal = max
-(0..4).each do |ma|
-  (0..4).each do |mb|
-    qgrid.each_with_index do |line,a|
-      line.each_with_index do |v,b|
-        nv = (v + ma + mb) % 9
-        grid[ma*la+a][mb*lb+b] = (nv == 0 ? 9 : nv).to_i8
+  def self.parse(filename)
+    qgrid = File.read(filename).split("\n").map {|line| line.chars.map &.to_i8 }
+    # return new(qgrid)
+    la = qgrid.size
+    lb = qgrid.first.size
+    grid = Array(Array(Int8)).new(la * 5) { Array(Int8).new(lb * 5,0) }
+    (0..4).each do |ma|
+      (0..4).each do |mb|
+        qgrid.each_with_index do |line,a|
+          line.each_with_index do |v,b|
+            nv = (v + ma + mb) % 9
+            grid[ma*la+a][mb*lb+b] = (nv == 0 ? 9 : nv).to_i8
+          end
+        end
       end
     end
+    new(grid)
   end
-end
 
-risk_map = Array.new(grid.size) { Array(Int32).new(grid[0].size,Int32::MAX) }
-risk_map[start.first][start.last] = 0
-# touches = Array.new(grid.size) { Array(Int32).new(grid[0].size,0) }
+  def initialize(grid)
+    @grid = grid
+    @width = grid.first.size
+    @height = grid.size
+  end
 
-steps = Array({Int32,Int32}).new(8000)
-ssteps = Set({Int32,Int32}).new(8000)
-steps << start
-ssteps << start
-best = Int32::MAX
-count = 0
-while(step = steps.shift?)
-  ssteps.delete step
-  count += 1
-  a,b = step
-  risk = risk_map[a][b]
-  next if (best < Int32::MAX) && (risk + (goal.first - a).abs + (goal.last - b).abs > best)
-  # touches[a][b] += 1
-  next best = {risk,best}.min if {a,b} == goal
-  ((a==0 ? 0 : -1)..(a==max.first ? 0 : 1)).each do |da|
-    ((b==0 ? 0 : -1)..(b==max.last ? 0 : 1)).each do |db|
-      next if da.abs == db.abs
-      na = a+da
-      nb = b+db
-      nrisk = risk + grid[na][nb]
-      next if nrisk >= risk_map[na][nb]
-      risk_map[na][nb] = nrisk
-      # The extra bookkeeping of this set improves the runtime from come back in
-      # a few minutes to 0.36s.
-      unless ssteps.includes?({na,nb})
-        steps << {na,nb}
-        ssteps << {na,nb}
+  def cost(start, goal)
+    costs = Array.new(@grid.size) { Array(Int32).new(@grid[0].size, Int32::MAX) }
+    costs[start.last][start.first] = 0
+    frontier = Array({Int32,{Int32,Int32}}).new(2000)
+    frontier << {self.class.heuristic_cost(start,goal),start}
+    count = 0
+    while(item = frontier.shift?)
+      _,node = item
+      cost_so_far = costs[node.last][node.first]
+      # puts "Considering #{node} (cost: #{cost_so_far})"
+      count += 1
+      if node == goal
+        puts "Considered #{count}"
+        return cost_so_far
       end
+      neighbors(node).each do |next_node|
+        cost = node_cost(next_node).to_i32 + cost_so_far
+        next unless self.class.new_best(costs,next_node,cost)
+        self.class.enqueue(frontier,{cost + self.class.heuristic_cost(next_node, goal),next_node})
+      end
+      # puts "Frontier #{frontier}" if(count > 10423)
+    end
+    puts "Found nothing, considered #{count}"
+  end
+
+  def node_cost(node)
+    x,y = node
+    @grid[y][x]
+  end
+
+  def neighbors(node)
+    x,y = node
+    [{0,1},{1,0},{0,-1},{-1,0}].map do |(dx,dy)|
+      {x + dx, y + dy}
+    end.select do |(x,y)|
+      (0...@width).includes?(x) && (0...@height).includes?(y)
     end
   end
-  # puts steps.size
+
+  def self.new_best(costs,node,cost)
+    x,y = node
+    return false unless cost < costs[y][x]
+    costs[y][x] = cost
+  end
+
+  def self.enqueue(list,item)
+    i = list.index {|existing| existing > item } || list.size
+    list.insert(i, item)
+  end
+
+  def self.heuristic_cost(a,b)
+    (a.first - b.first).abs + (a.last - b.last).abs
+  end
+
 end
 
-puts "Considered #{count}"
-# # print_grid touches
-# # puts "\n"
-# # print_grid risk_map
-
-puts "Lowest possible risk score: #{best}"
+puts Nav.parse("input/day15").cost({0,0},{499,499})

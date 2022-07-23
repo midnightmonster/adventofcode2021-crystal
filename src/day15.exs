@@ -28,15 +28,16 @@ defmodule Navigate do
     end) |> elem(1)
   end
   
-  def cost(nav, start, goal), do: costr({[{0, start}], %{start => 0}}, nav, goal)
+  def cost(nav, start, goal), do: costr({[{heuristic_cost(start,goal), start}], %{start => 0}}, nav, goal)
   
-  defp costr({[{final_cost, node} | _], _}, _nav, goal) when node == goal, do: final_cost
+  defp costr({[{_, node} | _], costs}, _nav, goal) when node == goal, do: Map.get(costs, node)
 
-  defp costr({[{cost_so_far, node} | frontier], costs}, nav, goal) do
+  defp costr({[{_, node} | frontier], costs}, nav, goal) do
+    cost_so_far = Map.get(costs, node)
     neighbors(nav, node) |> reduce({frontier, costs}, fn next, {frontier, costs} ->
       with cost <- (node_cost(nav, next) + cost_so_far),
            {:ok, costs} <- new_best(costs, next, cost) do
-        {enqueue(frontier,{cost,next}), costs}
+        {enqueue(frontier, {heuristic_cost(next, goal) + cost, next}), costs}
       else
         _ -> {frontier, costs}
       end
@@ -44,10 +45,13 @@ defmodule Navigate do
   end
 
   defp enqueue(list, item) do
-    {cost, {x,y}} = item
-    estimated = cost - x - y
-    {left, right} = split_while(list, fn {cost, {x,y}} -> (cost - x - y) < estimated end)
+    {cost, _} = item
+    {left, right} = split_while(list, fn {lcost, _} -> lcost < cost end)
     left ++ [item | right]
+  end
+
+  def heuristic_cost({ax,ay}, {bx,by}) do
+    abs(bx-ax) + abs(by-ay)
   end
 
   def node_cost(nav, {x,y}) do
