@@ -44,7 +44,9 @@ defmodule Navigate do
   end
 
   defp enqueue(list, item) do
-    {left, right} = split_while(list, &(&1 < item))
+    {cost, {x,y}} = item
+    estimated = cost - x - y
+    {left, right} = split_while(list, fn {cost, {x,y}} -> (cost - x - y) < estimated end)
     left ++ [item | right]
   end
 
