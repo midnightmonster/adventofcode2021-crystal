@@ -79,7 +79,7 @@ defmodule Navigate do
   end
 end
 
-Navigate.load_file("input/day15",4,4)
-# |> IO.inspect
-|> Navigate.cost({0,0},{499,499})
-|> IO.puts
+:timer.tc(fn ->
+  Navigate.load_file("input/day15",4,4)
+  |> Navigate.cost({0,0},{499,499})
+end) |> IO.inspect
